@@ -1,0 +1,13 @@
+{
+    "name": "bartfbchatbot",
+    "version": "0.0.1",
+    "description": "Bay Area Rapid Transit Chatbot for Facebook Messenger",
+    "dependencies": {
+        "express": "4.13.4",
+        "request": "2.71.0",
+        "body-parser": "1.15.0"
+    },
+    "scripts": {
+        "start": "node bartfbchatbot.js"
+    }
+}
