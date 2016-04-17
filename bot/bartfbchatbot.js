@@ -97,6 +97,8 @@ function processMessage(sender, reqText) {
 
                             for (m = 0; m < etd.estimate.length; m++) {
                                 estimate = etd.estimate[m];
+                                // todo sort out leaving status
+                                // todo fix 1 minute status
                                 respText += estimate.minutes + ' mins, ' + estimate['length'] + ' cars\n';
                             }
                         }
