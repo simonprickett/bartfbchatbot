@@ -97,9 +97,12 @@ function processMessage(sender, reqText) {
 
                             for (m = 0; m < etd.estimate.length; m++) {
                                 estimate = etd.estimate[m];
-                                // todo sort out leaving status
-                                // todo fix 1 minute status
-                                respText += estimate.minutes + ' mins, ' + estimate['length'] + ' cars\n';
+                                if (estimate.minutes === 'Leaving') {
+                                    respText += estimate.minutes;
+                                } else {
+                                    respText += estimate.minutes + (estimate.minutes > 1 ? ' mins' : ' min');
+                                }
+                                respText += ', ' + estimate['length'] + ' cars\n';
                             }
                         }
                     }
@@ -119,6 +122,8 @@ function processMessage(sender, reqText) {
             respText = 'I wasn\'t able to work out which station code you wanted to know about.  Please try\n\ndepartures from powl\n\ndepartures at powl\n\ndepartures powl'; 
             sendTextMessage(sender, respText);
         }
+    } else if (reqText.indexOf('simontest') > -1) {
+        sendGenericMessage(sender);
     } else if (reqText.indexOf('elevators') > -1) {
         httpRequest({
             url: BART_API_BASE + '/elevatorStatus',
@@ -193,6 +198,60 @@ function sendTextMessage(sender, text) {
         json: {
             recipient: {id:sender},
             message: messageData,
+        }
+    }, function(error, response, body) {
+        if (error) {
+            console.log('Error sending message: ', error);
+        } else if (response.body.error) {
+            console.log('Error: ', response.body.error);
+        }
+    });
+}
+
+function sendGenericMessage(sender, messageData) {
+    var messageD = {
+        "attachment": {
+            "type": "template",
+            "payload": {
+                "template_type": "generic",
+                "elements": [{
+                    "title": "First card",
+                    "subtitle": "Element #1 of an hscroll",
+                    "image_url": "http://messengerdemo.parseapp.com/img/rift.png",
+                    "buttons": [{
+                        "type": "web_url",
+                        "url": "https://www.messenger.com/",
+                        "title": "Web url"
+                    }, {
+                        "type": "postback",
+                        "title": "Postback",
+                        "payload": "Payload for first element in a generic bubble",
+                    }]
+                }, {
+                    "title": "Second card",
+                    "subtitle": "Element #2 of an hscroll",
+                    "image_url": "http://messengerdemo.parseapp.com/img/gearvr.png",
+                    "buttons": [{
+                        "type": "postback",
+                        "title": "Postback",
+                        "payload": "Payload for second element in a generic bubble",
+                    }]
+                }]
+            }
+        }
+    };
+
+    httpRequest({
+        url: 'https://graph.facebook.com/v2.6/me/messages',
+        qs: { 
+            access_token: FACEBOOK_PAGE_ACCESS_TOKEN 
+        },
+        method: 'POST',
+        json: {
+            recipient: {
+                id: sender
+            },
+            message: message,
         }
     }, function(error, response, body) {
         if (error) {
