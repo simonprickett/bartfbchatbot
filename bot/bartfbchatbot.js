@@ -139,8 +139,6 @@ function processMessage(sender, reqText) {
             respText = 'I wasn\'t able to work out which station code you wanted to know about.  Please try\n\ndepartures from powl\n\ndepartures at powl\n\ndepartures powl'; 
             sendTextMessage(sender, respText);
         }
-    } else if (reqText.indexOf('simontest') > -1) {
-        sendGenericMessage(sender);
     } else if (reqText.indexOf('elevators') > -1) {
         httpRequest({
             url: BART_API_BASE + '/elevatorStatus',
@@ -206,11 +204,40 @@ function processLocation(sender, coords) {
         url: BART_API_BASE + '/station/' + coords.lat + '/' + coords.long,
         method: 'GET'
     }, function(error, response, body) {
-        var station;
+        var station,
+            messageData;
 
         if (! error && response.statusCode === 200) {
             station = JSON.parse(body);
-            sendTextMessage(sender, 'Your closest BART station is ' + station.name + ' which is ' + station.distance.toFixed(2) + ' miles away.');
+            messageData = {
+                "attachment": {
+                    "type": "template",
+                    "payload": {
+                        "template_type": "generic",
+                        "elements": [{
+                            "title": "Closest BART: " + station.name,
+                            "subtitle": station.distance.toFixed(2) + " miles",
+                            "image_url": "http://staticmap.openstreetmap.de/staticmap.php?center=" + station.gtfs_latitude + "," + station.gtfs_longitude + "&zoom=18&size=640x480&maptype=osmarenderer&markers=" + station.gtfs_latitude + "," + station.gtfs_longitude,
+                            "buttons": [{
+                                "type": "web_url",
+                                "url": "http://www.bart.gov/stations/" + station.abbr.toLowerCase(),
+                                "title": "Station Information"
+                            }, {
+                                "type": "postback",
+                                "title": "Departures",
+                                "payload": "departures " + station.abbr,
+                            }, {
+                                "type": "web_url",
+                                "url": "http://www.google.com",
+                                "title": "Directions"
+                            }]
+                        }]
+                    }
+                }
+            };
+
+            sendGenericMessage(sender, messageData);
+            //sendTextMessage(sender, 'Your closest BART station is ' + station.name + ' which is ' + station.distance.toFixed(2) + ' miles away.');
         } else {
             console.log(error);
             sendTextMessage(sender, 'Sorry I was unable to determine your closest BART station.');
@@ -230,7 +257,9 @@ function sendTextMessage(sender, text) {
         },
         method: 'POST',
         json: {
-            recipient: {id:sender},
+            recipient: { 
+                id:sender
+            },
             message: messageData,
         }
     }, function(error, response, body) {
@@ -243,38 +272,6 @@ function sendTextMessage(sender, text) {
 }
 
 function sendGenericMessage(sender, messageData) {
-    var messageD = {
-        "attachment": {
-            "type": "template",
-            "payload": {
-                "template_type": "generic",
-                "elements": [{
-                    "title": "First card",
-                    "subtitle": "Element #1 of an hscroll",
-                    "image_url": "http://messengerdemo.parseapp.com/img/rift.png",
-                    "buttons": [{
-                        "type": "web_url",
-                        "url": "https://www.messenger.com/",
-                        "title": "Web url"
-                    }, {
-                        "type": "postback",
-                        "title": "Postback",
-                        "payload": "Payload for first element in a generic bubble",
-                    }]
-                }, {
-                    "title": "Second card",
-                    "subtitle": "Element #2 of an hscroll",
-                    "image_url": "http://messengerdemo.parseapp.com/img/gearvr.png",
-                    "buttons": [{
-                        "type": "postback",
-                        "title": "Postback",
-                        "payload": "Payload for second element in a generic bubble",
-                    }]
-                }]
-            }
-        }
-    };
-
     httpRequest({
         url: 'https://graph.facebook.com/v2.6/me/messages',
         qs: { 
@@ -285,7 +282,7 @@ function sendGenericMessage(sender, messageData) {
             recipient: {
                 id: sender
             },
-            message: message,
+            message: messageData,
         }
     }, function(error, response, body) {
         if (error) {
