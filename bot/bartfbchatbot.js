@@ -80,6 +80,9 @@ function processMessage(sender, reqText) {
                     keywordPos = reqText.indexOf('departures');
                     if (reqText.length >= keywordPos + 15) {
                         stationCode = reqText.substring(keywordPos + 11, keywordPos + 15);
+                    } else {
+                        // No station code
+                        keywordPos = -1;
                     }
                 }
             }
