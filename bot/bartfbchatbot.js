@@ -2,6 +2,20 @@
 
 /* bartfbchatbot.js */
 
+/*
+ * TODO:
+ *
+ * - Use rich response example for departures
+ * - Add link to station as a button
+ * - Add postback ???
+ * - When user sends location respond nearest station and postback to departures
+ */
+
+ /*
+ Message with location example:
+ {"sender":{"id":975552755856163},"recipient":{"id":212581079113917},"timestamp":1460870859085,"message":{"mid":"mid.1460870858914:f7997bafab09f38617","seq":286,"attachments":[{"title":"Simon's Location","url":"https://www.facebook.com/l.php?u=https%3A%2F%2Fwww.bing.com%2Fmaps%2Fdefault.aspx%3Fv%3D2%26pc%3DFACEBK%26mid%3D8100%26where1%3D32.721345192706%252C%2B-117.1642067299%26FORM%3DFBKPL1%26mkt%3Den-US&h=MAQHg8oYv&s=1&enc=AZOQ8WYuMPobIxQRY1mJJQzrFajOwni-AuFLT2EMiaSNc2LOLddqU3EaSSs1ulMS8OLcNDlCiXxqZVvffwAgxP857v9AiQw_vFW56piG_iq1Ug","type":"location","payload":{"coordinates":{"lat":32.721345192706,"long":-117.1642067299}}}]}}
+ */
+
 var express = require('express'),
     httpRequest = require('request'),
     app = express(),
@@ -184,6 +198,23 @@ function processMessage(sender, reqText) {
     }
 }
 
+function processLocation(sender, coords) {
+    httpRequest({
+        url: BART_API_BASE + '/station/' + coords.lat + '/' + coords.long,
+        method: 'GET'
+    }, function(error, response, body) {
+        var station;
+
+        if (! error && response.statusCode === 200) {
+            station = JSON.parse(body);
+            sendTextMessage(sender, 'Your closest BART station is ' + station.name + ' which is ' + station.distance.toFixed(2) + ' miles away.');
+        } else {
+            console.log(error);
+            sendTextMessage(sender, 'Sorry I was unable to determine your closest BART station.');
+        }
+    });   
+}
+
 function sendTextMessage(sender, text) {
     var messageData = {
         text: text
@@ -268,10 +299,6 @@ app.use(bodyParser.urlencoded({
     extended: true
 }));
 
-app.get('/test', function(req, res) {
-    processMessage('simon', 'what news of the stations?');
-});
-
 app.get('/', function(req, res) {
     res.send('BART Facebook Chatbot.');
 });
@@ -288,14 +315,26 @@ app.post('/webhook/', function (req, res) {
         i = 0,
         event,
         sender,
-        text;
+        text,
+        attachment;
 
     for (; i < messaging_events.length; i++) {
         event = req.body.entry[0].messaging[i];
+        console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
+        console.log(JSON.stringify(event));
+        console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
         sender = event.sender.id;
-        if (event.message && event.message.text) {
-            text = event.message.text;
-            processMessage(sender, text);
+        if (event.message && event.message.attachments && event.message.attachments.length > 0) {
+            attachment = event.message.attachments[0];
+
+            if (attachment.type === 'location') {
+                processLocation(sender, attachment.payload.coordinates);
+            }
+        } else {
+            if (event.message && event.message.text) {
+                text = event.message.text;
+                processMessage(sender, text);
+            }
         }
     }
 
