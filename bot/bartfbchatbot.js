@@ -6,7 +6,8 @@
  * TODO:
  *
  * - Use rich response example for departures
- * - Location response needs 
+ * - Location response needs postback to work
+ * - Welcome message via separate curl request
  */
 
 var express = require('express'),
@@ -258,7 +259,7 @@ function sendTextMessage(sender, text) {
         method: 'POST',
         json: {
             recipient: { 
-                id:sender
+                id: sender
             },
             message: messageData,
         }
@@ -311,31 +312,35 @@ app.get('/webhook/', function (req, res) {
 });
 
 app.post('/webhook/', function (req, res) {
-    var messaging_events = req.body.entry[0].messaging, 
+    var messagingEvents, 
         i = 0,
         event,
         sender,
         text,
         attachment;
 
-    for (; i < messaging_events.length; i++) {
-        event = req.body.entry[0].messaging[i];
-        console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
-        console.log(JSON.stringify(event));
-        console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
-        sender = event.sender.id;
-        if (event.message && event.message.attachments && event.message.attachments.length > 0) {
-            attachment = event.message.attachments[0];
+    if (req.body && req.body.entry) {
+        messagingEvents = req.body.entry[0].messaging;
 
-            if (attachment.type === 'location') {
-                processLocation(sender, attachment.payload.coordinates);
-            }
-        } else if (event.postback && event.postback.payload) {
-            sendTextMessage(sender, 'Thanks payload ' + event.postback.payload);
-        } else {
-            if (event.message && event.message.text) {
-                text = event.message.text;
-                processMessage(sender, text);
+        for (; i < messagingEvents.length; i++) {
+            event = messagingEvents[i];
+            console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
+            console.log(JSON.stringify(event));
+            console.log('^^^^^^^^^^^^^^^^^^^^^^^^');
+            sender = event.sender.id;
+            if (event.message && event.message.attachments && event.message.attachments.length > 0) {
+                attachment = event.message.attachments[0];
+
+                if (attachment.type === 'location') {
+                    processLocation(sender, attachment.payload.coordinates);
+                }
+            } else if (event.postback && event.postback.payload) {
+                sendTextMessage(sender, 'Thanks payload ' + event.postback.payload);
+            } else {
+                if (event.message && event.message.text) {
+                    text = event.message.text;
+                    processMessage(sender, text);
+                }
             }
         }
     }
