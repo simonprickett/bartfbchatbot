@@ -6,14 +6,7 @@
  * TODO:
  *
  * - Use rich response example for departures
- * - Add link to station as a button
- * - Add postback ???
- * - When user sends location respond nearest station and postback to departures
- */
-
- /*
- Message with location example:
- {"sender":{"id":975552755856163},"recipient":{"id":212581079113917},"timestamp":1460870859085,"message":{"mid":"mid.1460870858914:f7997bafab09f38617","seq":286,"attachments":[{"title":"Simon's Location","url":"https://www.facebook.com/l.php?u=https%3A%2F%2Fwww.bing.com%2Fmaps%2Fdefault.aspx%3Fv%3D2%26pc%3DFACEBK%26mid%3D8100%26where1%3D32.721345192706%252C%2B-117.1642067299%26FORM%3DFBKPL1%26mkt%3Den-US&h=MAQHg8oYv&s=1&enc=AZOQ8WYuMPobIxQRY1mJJQzrFajOwni-AuFLT2EMiaSNc2LOLddqU3EaSSs1ulMS8OLcNDlCiXxqZVvffwAgxP857v9AiQw_vFW56piG_iq1Ug","type":"location","payload":{"coordinates":{"lat":32.721345192706,"long":-117.1642067299}}}]}}
+ * - Location response needs 
  */
 
 var express = require('express'),
@@ -43,7 +36,7 @@ function processMessage(sender, reqText) {
             if (! error && response.statusCode === 200) {
                 stations = JSON.parse(body);
                 console.log(stations);
-                respText = 'Ask me for departures for any of ';
+                respText = 'Ask me for departures for any of these station codes ';
 
                 for (; n < stations.length; n++) {
                     respText += stations[n].abbr + ', ';
@@ -55,7 +48,6 @@ function processMessage(sender, reqText) {
                 respText = 'Sorry something happened: ' + error;
             }
 
-            console.log(respText);
             sendTextMessage(sender, respText);
         });
     } else if (reqText.indexOf('departures') > -1) {
@@ -81,7 +73,7 @@ function processMessage(sender, reqText) {
                     if (reqText.length >= keywordPos + 15) {
                         stationCode = reqText.substring(keywordPos + 11, keywordPos + 15);
                     } else {
-                        // No station code
+                        // Keyword found but no station code
                         keywordPos = -1;
                     }
                 }
@@ -144,11 +136,13 @@ function processMessage(sender, reqText) {
             url: BART_API_BASE + '/elevatorStatus',
             method: 'GET'
         }, function(error, response, body) {
-            var elevatorStatus;
+            var elevatorStatus,
+                messageData;
+
+            respText = 'There are currently no known elevator issues.';
 
             if (! error && response.statusCode === 200) {
                 elevatorStatus = JSON.parse(body);
-                respText = 'There are currently no known elevator outages.';
 
                 if (elevatorStatus.bsa && elevatorStatus.bsa.description) {
                     respText = elevatorStatus.bsa.description;
@@ -205,10 +199,16 @@ function processLocation(sender, coords) {
         method: 'GET'
     }, function(error, response, body) {
         var station,
-            messageData;
+            messageData,
+            directionsUrl;
 
         if (! error && response.statusCode === 200) {
             station = JSON.parse(body);
+            directionsUrl = 'http://bing.com/maps/default.aspx?rtop=0~~&rtp=pos.' + coords.lat + '_' + coords.long + '~pos.' + station.gtfs_latitude + '_' + station.gtfs_longitude + '&mode=';
+
+            // Walkable if 2 miles or under
+            directionsUrl += (station.distance <= 2 ? 'W' : 'D');
+
             messageData = {
                 "attachment": {
                     "type": "template",
@@ -228,7 +228,7 @@ function processLocation(sender, coords) {
                                 "payload": "departures " + station.abbr,
                             }, {
                                 "type": "web_url",
-                                "url": "http://www.google.com",
+                                "url": directionsUrl,
                                 "title": "Directions"
                             }]
                         }]
@@ -330,6 +330,8 @@ app.post('/webhook/', function (req, res) {
             if (attachment.type === 'location') {
                 processLocation(sender, attachment.payload.coordinates);
             }
+        } else if (event.postback && event.postback.payload) {
+            sendTextMessage(sender, 'Thanks payload ' + event.postback.payload);
         } else {
             if (event.message && event.message.text) {
                 text = event.message.text;
