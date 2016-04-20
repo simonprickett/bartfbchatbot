@@ -5,9 +5,7 @@
 /*
  * TODO:
  *
- * - Use rich response example for departures
- * - Location response needs postback to work
- * - Welcome message via separate curl request
+ * - Add some better parsing with http://wit.ai
  */
 
 var express = require('express'),
