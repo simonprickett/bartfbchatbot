@@ -1,5 +1,6 @@
-# bartfbchatbot
-Facebook Messenger Chatbot for BART
+# BART Chat Bot for Facebook Messenger
+
+Facebook Messenger chat bot for BART (Bay Area Rapid Transit).
 
 More detail will be added later.
 
