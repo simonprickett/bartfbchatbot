@@ -1,6 +1,14 @@
 # bartfbchatbot
 Facebook Messenger Chatbot for BART
 
+More detail will be added later.
+
+## Video
+
+To a YouTube video of this working, click the screenshot below.
+
+[![Hey BART Bot](bart_fb_bot_screenshot.png)](https://www.youtube.com/watch?v=_zUNHfDCsDk "Hey BART Bot")
+
 ## Subscribe App to Facebook Page
 
 ```
