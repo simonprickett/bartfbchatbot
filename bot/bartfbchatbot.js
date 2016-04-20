@@ -20,13 +20,15 @@ var express = require('express'),
     BART_API_BASE = 'http://bart.crudworks.org/api';
 
 function processMessage(sender, reqText) {
-    var respText = 'Sorry I don\'t understand, try:\n\nstatus\nelevators\nstations\ndepartures <stationCode>',
+    var respText = 'Sorry I don\'t understand. Try:\n\nstatus\nelevators\nstations\ndepartures <code>\n\nOr send your location for nearest station.',
         keywordPos = -1,
         stationCode;
 
     reqText = reqText.trim().toLowerCase();
 
-    if (reqText.indexOf('stations') > -1) {
+    if (reqText.indexOf('help') > -1) {
+        sendTextMessage(sender, respText.substring(26));
+    } else if (reqText.indexOf('stations') > -1) {
         httpRequest({
             url: BART_API_BASE + '/stations',
             method: 'GET'
@@ -37,7 +39,7 @@ function processMessage(sender, reqText) {
             if (! error && response.statusCode === 200) {
                 stations = JSON.parse(body);
                 console.log(stations);
-                respText = 'Ask me for departures for any of these station codes ';
+                respText = 'Try departures from <code>:  ';
 
                 for (; n < stations.length; n++) {
                     respText += stations[n].abbr + ', ';
@@ -91,6 +93,10 @@ function processMessage(sender, reqText) {
                 var departures,
                     etd,
                     estimate,
+                    messageData = undefined,
+                    card,
+                    cards = [],
+                    departureTimes = '',
                     n = 0,
                     m;
 
@@ -99,30 +105,41 @@ function processMessage(sender, reqText) {
                     respText = 'Sorry I don\'t know about a station with the code \'' + stationCode.toUpperCase() + '\': please try \'stations\' for a list of valid station codes.';
 
                     if (departures.etd && departures.etd.length > 0) {
-                        respText = 'Departures from ' + departures.name;
+                        messageData = {
+                            attachment: {
+                                type: 'template',
+                                payload: {
+                                    template_type: 'generic',
+                                    elements: []
+                                }
+                            }
+                        };
 
                         for (; n < departures.etd.length; n++) {
                             etd = departures.etd[n];
-                            respText += '\n\nPlatform ' + etd.estimate[0].platform + ': ' + etd.destination + '\n\n';
-
-                            for (m = 0; m < etd.estimate.length; m++) {
+                            card = {
+                                title: etd.destination,
+                            };
+                            
+                            for (m = 0; m < etd.estimate.length && m < 3; m++) {
                                 estimate = etd.estimate[m];
                                 if (estimate.minutes === 'Leaving') {
-                                    respText += estimate.minutes;
+                                    departureTimes += estimate.minutes;
                                 } else {
-                                    respText += estimate.minutes + (estimate.minutes > 1 ? ' mins' : ' min');
+                                    departureTimes += estimate.minutes + (estimate.minutes > 1 ? ' mins' : ' min');
                                 }
-                                respText += ', ' + estimate['length'] + ' cars\n';
+                                departureTimes += ', ' + estimate['length'] + ' cars. ';
                             }
+
+                            card.subtitle = departureTimes;
+                            cards.push(card);
                         }
+
+                        messageData.attachment.payload.elements = cards;
                     }
 
-                    // until i can work this out...
-                    // other formats allow >320 chars per message...
-                    if (respText.length > 320) {
-                        // need to work out ordering issue here
-                        sendTextMessage(sender, respText.substring(0, 310) + '...');
-                        sendTextMessage(sender, '...' + respText.substring(310));
+                    if (messageData) {
+                        sendGenericMessage(sender, messageData);
                     } else {
                         sendTextMessage(sender, respText);
                     }
@@ -211,26 +228,26 @@ function processLocation(sender, coords) {
             directionsUrl += (station.distance <= 2 ? 'W' : 'D');
 
             messageData = {
-                "attachment": {
-                    "type": "template",
-                    "payload": {
-                        "template_type": "generic",
-                        "elements": [{
-                            "title": "Closest BART: " + station.name,
-                            "subtitle": station.distance.toFixed(2) + " miles",
-                            "image_url": "http://staticmap.openstreetmap.de/staticmap.php?center=" + station.gtfs_latitude + "," + station.gtfs_longitude + "&zoom=18&size=640x480&maptype=osmarenderer&markers=" + station.gtfs_latitude + "," + station.gtfs_longitude,
-                            "buttons": [{
-                                "type": "web_url",
-                                "url": "http://www.bart.gov/stations/" + station.abbr.toLowerCase(),
-                                "title": "Station Information"
+                'attachment': {
+                    'type': 'template',
+                    'payload': {
+                        'template_type': 'generic',
+                        'elements': [{
+                            'title': 'Closest BART: ' + station.name,
+                            'subtitle': station.distance.toFixed(2) + ' miles',
+                            'image_url': 'http://staticmap.openstreetmap.de/staticmap.php?center=' + station.gtfs_latitude + ',' + station.gtfs_longitude + '&zoom=18&size=640x480&maptype=osmarenderer&markers=' + station.gtfs_latitude + ',' + station.gtfs_longitude,
+                            'buttons': [{
+                                'type': 'web_url',
+                                'url': 'http://www.bart.gov/stations/' + station.abbr.toLowerCase(),
+                                'title': 'Station Information'
                             }, {
-                                "type": "postback",
-                                "title": "Departures",
-                                "payload": "departures " + station.abbr,
+                                'type': 'postback',
+                                'title': 'Departures',
+                                'payload': 'departures ' + station.abbr,
                             }, {
-                                "type": "web_url",
-                                "url": directionsUrl,
-                                "title": "Directions"
+                                'type': 'web_url',
+                                'url': directionsUrl,
+                                'title': 'Directions'
                             }]
                         }]
                     }
@@ -238,7 +255,6 @@ function processLocation(sender, coords) {
             };
 
             sendGenericMessage(sender, messageData);
-            //sendTextMessage(sender, 'Your closest BART station is ' + station.name + ' which is ' + station.distance.toFixed(2) + ' miles away.');
         } else {
             console.log(error);
             sendTextMessage(sender, 'Sorry I was unable to determine your closest BART station.');
@@ -335,7 +351,9 @@ app.post('/webhook/', function (req, res) {
                     processLocation(sender, attachment.payload.coordinates);
                 }
             } else if (event.postback && event.postback.payload) {
-                sendTextMessage(sender, 'Thanks payload ' + event.postback.payload);
+                if (event.postback.payload.indexOf('departures') > -1) {
+                    processMessage(sender, event.postback.payload);
+                }
             } else {
                 if (event.message && event.message.text) {
                     text = event.message.text;
