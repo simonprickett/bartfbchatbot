@@ -10,6 +10,13 @@ To a YouTube video of this working, click the screenshot below.
 
 [![Hey BART Bot](bart_fb_bot_screenshot.png)](https://www.youtube.com/watch?v=_zUNHfDCsDk "Hey BART Bot")
 
+## BART API
+
+This project uses my BART JSON API:
+
+* [GitHub Repo](https://github.com/simonprickett/bartnodeapi)
+* [Running Instance used by this project to get data from BART](http://bart.crudworks.org/api)
+
 ## Subscribe App to Facebook Page
 
 ```
