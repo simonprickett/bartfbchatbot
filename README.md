@@ -115,6 +115,95 @@ You should now have things setup so that messages sent to your page from Faceboo
 
 ## Adding Logic to the Node Backend
 
+The Node backend application now needs to be modified to receive and process messages from the Facebook platform, and respond with appropriately formatted JSON replies that Facebook will render as messages to the user from the bot.
+
+The Facebook platform communicates with the bot using a single `POST` route to `/webhook/`, so we need to add a handler for that to our Node/Express application.
+
+Facebook provides some boilerplate code for this that looks like this:
+
+```
+app.post('/webhook/', function (req, res) {
+  messaging_events = req.body.entry[0].messaging;
+  for (i = 0; i < messaging_events.length; i++) {
+    event = req.body.entry[0].messaging[i];
+    sender = event.sender.id;
+    if (event.message && event.message.text) {
+      text = event.message.text;
+      // Handle a text message from this sender
+    }
+  }
+  res.sendStatus(200);
+});
+```
+
+This will receive a message (or array of - Facebook can batch incoming messages together if traffic on the system is high), then get the text of the message out of the incoming request.  You then need to add your own code to do something with that text (parse it for keywords for example) and return a response JSON object that Facebook will render back to the user.
+
+In my bot, I'm handling more than just the basic text messages that the Facebook example code caters for: I'm looking for messages with a location attachment (user has sent their location from Messenger to the bot), and postback messages from previous button presses that the user made on calls to action that the user took when dealing with replies from the bot.  So my logic for processing incoming messages from Messenger looks like:
+
+```
+app.post('/webhook/', function (req, res) {
+    var messagingEvents, 
+        i = 0,
+        event,
+        sender,
+        text,
+        attachment;
+
+    if (req.body && req.body.entry) {
+        messagingEvents = req.body.entry[0].messaging;
+
+        for (; i < messagingEvents.length; i++) {
+            event = messagingEvents[i];
+            sender = event.sender.id;
+            if (event.message && event.message.attachments && event.message.attachments.length > 0) {
+                attachment = event.message.attachments[0];
+
+                if (attachment.type === 'location') {
+                    processLocation(sender, attachment.payload.coordinates);
+                }
+            } else if (event.postback && event.postback.payload) {
+                if (event.postback.payload.indexOf('departures') > -1) {
+                    processMessage(sender, event.postback.payload);
+                }
+            } else {
+                if (event.message && event.message.text) {
+                    text = event.message.text;
+                    processMessage(sender, text);
+                }
+            }
+        }
+    }
+
+    res.sendStatus(200);
+});
+```
+
+We'll cover each of the message types in detail, but we're looking for:
+
+* Text message: `event.message.text`
+* Postback action (call to action button pressed): `event.postback.payload`
+* Location sent: `event.message.attachments[0].type === 'location'`
+
+Then we deal with each using their own function.
+
+## Responding to Messages from Users
+
+Now we can read messages from users, we need to do something with them and send an appropriate response back.
+
+The Messenger platform supports some basic response types, which are:
+
+* TODO
+
+### Text Messages
+
+TODO
+
+### Location Messages
+
+TODO
+
+### Postback Messages
+
 TODO
 
 ## Additional Facebook Setup
@@ -128,3 +217,7 @@ This is optional, but nice to have.  A welcome message is displayed automaticall
 ```
 curl -H "Content-Type: application/json" -X POST -d '{"setting_type":"call_to_actions","thread_state":"new_thread","call_to_actions":[{"message":{"text":"Hi, I am BART bot - I can help with your Bay Area travel needs!"}}]}' https://graph.facebook.com/v2.6/heybartbot/thread_settings?access_token=<FACEBOOK_PAGE_ACCESS_TOKEN>
 ```
+
+### Receive Images from Messenger Users
+
+TODO - not used in this bot, but explain the capability.
