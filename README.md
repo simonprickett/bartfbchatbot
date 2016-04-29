@@ -178,7 +178,9 @@ app.post('/webhook/', function (req, res) {
 });
 ```
 
-We'll cover each of the message types in detail, but we're looking for:
+Note we always send a 200 status back to Facebook as soon as possible - the response message will be sent as a separate `POST` asychronously.
+
+We'll cover each of the incoming message types in detail, but we're looking for:
 
 * Text message: `event.message.text`
 * Postback action (call to action button pressed): `event.postback.payload`
@@ -192,19 +194,234 @@ Now we can read messages from users, we need to do something with them and send 
 
 The Messenger platform supports some basic response types, which are:
 
-* TODO
+* A text message (plain text)
+* A URL to an image (not used in this example)
+* An image file (not used in this example)
+* A call to action with postback action buttons or links to external websites
+* A structured message containing one or more "bubbles", each containing text, optional image and optional calls to action links.  "bubbles" scroll horizontally in the user's view in Messenger
+* A structured message containing a receipt for goods (not used in this example)
 
-### Text Messages
+The message types are all quite basic, represented as JSON, and have little to no formatting options.  More information and example JSON schemas for each can be found in the [Send API Reference documentation](https://developers.facebook.com/docs/messenger-platform/send-api-reference).
 
-TODO
+The API is not designed for long replies, the currenct limitations are:
 
-### Location Messages
+* Title field: 45 characters
+* Subtitle field: 80 characters
+* Call to action button title: 20 characters
+* Maximum call to action items per bubble: 3
+* Maximium bubbles per message response: 10 (will scroll horizontally)
 
-TODO
+Text appears to have little to no formatting options (seemingly no way to do an unordered or ordered list.  `\n` does cause a line break).
 
-### Postback Messages
+If a message has a text field in it that contains more than the allowed number of characters, Facebook will reject it.
 
-TODO
+### Responding to Text Messages
+
+When we receive a text message (identified by a `POST` to `/webhook/` containing):
+
+```
+event.message.text
+```
+
+everything that the user typed is delivered as a single string in the above property.
+
+We can then use any sort of string parsing to try and work out what the user is asking for, and send any type of response message (plain text, one or more bubbles of text / image / link / call to action buttons).
+
+In this demo, we're using basic string searches to determine the user's query.  Ugly, but effective enough to pick out what we need:
+
+```
+function processMessage(sender, reqText) {
+    var respText = 'Sorry I don\'t understand. Try:\n\nstatus\nelevators\nstations\ndepartures <code>\n\nOr send your location for nearest station.',
+        keywordPos = -1,
+        stationCode;
+
+    reqText = reqText.trim().toLowerCase();
+
+    if (reqText.indexOf('help') > -1) {
+        // Deal with sending user help message
+    } else if (reqText.indexOf('stations') > -1) {
+        // Get a list of all station codes and send them to the user
+    } else if (reqText.indexOf('departures') > -1) {
+        // Parse out a station code from:
+        // departures from <code>
+        // departures for <code>
+        // departures at <code>
+        // departures <code>
+
+        keywordPos = reqText.indexOf('departures at');
+        if (keywordPos > -1 && reqText.length >= keywordPos + 18) {
+            stationCode = reqText.substring(keywordPos + 14, keywordPos + 18);
+        } else {
+            keywordPos = reqText.indexOf('departures for');
+            if (keywordPos > -1 && reqText.length >= keywordPos + 19) {
+                stationCode = reqText.substring(keywordPos + 15, keywordPos + 19);
+            } else {
+                keywordPos = reqText.indexOf('departures from');
+                if (keywordPos > -1 && reqText.length >= keywordPos + 20) {
+                    stationCode = reqText.substring(keywordPos + 16, keywordPos + 20);
+                } else {
+                    keywordPos = reqText.indexOf('departures');
+                    if (reqText.length >= keywordPos + 15) {
+                        stationCode = reqText.substring(keywordPos + 11, keywordPos + 15);
+                    } else {
+                        // Keyword found but no station code
+                        keywordPos = -1;
+                    }
+                }
+            }
+        }
+
+        if (keywordPos > -1) {
+            stationCode = stationCode.trim();
+            // Go get the train departures for the requested
+            // station code and send to the user
+        } else {
+            // Send error message to user
+        }
+    } else if (reqText.indexOf('elevators') > -1) {
+        // Get elevator status and send to the user
+    } else if (reqText.indexOf('status') > -1) {
+        // Get system status and service announcements
+        // and send to the user
+    } else {
+        // Unknown command
+        console.log(respText);
+        sendTextMessage(sender, respText);
+    }
+}
+```
+
+For more complex text processing, Facebook recommend trying [wit.ai](https://wit.ai/).
+
+* TODO example of text message response
+* TODO example of generic / richer response
+
+### Responding to Location Messages
+
+When we receive a location message (identified by):
+
+```
+event.message.attachments[0].type === 'location'
+```
+
+We're interested in the user's lat/long co-ordinates, which can be obtained from the incoming message as:
+
+```
+attachment.payload.coordinates.lat
+attachment.payload.coordinates.long
+```
+
+and then used in any other API calls or further processing to determine what sort of response to send back to the user.
+
+In our case, the bot asks the BART API for the station closest to the user's location then responds with a "Generic" template message containing:
+
+* Name of the closest station
+* Distance in miles to closest station
+* Image containing an Open Street Map tile showing the nearest station's location
+* Call to Action button to open the BART website at the nearest station's page
+* Call to Action button to tell the bot that the user would like to see train departures from that tation
+* Call to Action button to open a Bing maps URL with driving directions to the station if it is more than 2 miles away, otherwise walking directions
+
+The code for this looks like:
+
+```
+function processLocation(sender, coords) {
+    httpRequest({
+        url: BART_API_BASE + '/station/' + coords.lat + '/' + coords.long,
+        method: 'GET'
+    }, function(error, response, body) {
+        var station,
+            messageData,
+            directionsUrl;
+
+        if (! error && response.statusCode === 200) {
+            station = JSON.parse(body);
+            directionsUrl = 'http://bing.com/maps/default.aspx?rtop=0~~&rtp=pos.' + coords.lat + '_' + coords.long + '~pos.' + station.gtfs_latitude + '_' + station.gtfs_longitude + '&mode=';
+
+            // Walkable if 2 miles or under
+            directionsUrl += (station.distance <= 2 ? 'W' : 'D');
+
+            messageData = {
+                'attachment': {
+                    'type': 'template',
+                    'payload': {
+                        'template_type': 'generic',
+                        'elements': [{
+                            'title': 'Closest BART: ' + station.name,
+                            'subtitle': station.distance.toFixed(2) + ' miles',
+                            'image_url': 'http://staticmap.openstreetmap.de/staticmap.php?center=' + station.gtfs_latitude + ',' + station.gtfs_longitude + '&zoom=18&size=640x480&maptype=osmarenderer&markers=' + station.gtfs_latitude + ',' + station.gtfs_longitude,
+                            'buttons': [{
+                                'type': 'web_url',
+                                'url': 'http://www.bart.gov/stations/' + station.abbr.toLowerCase(),
+                                'title': 'Station Information'
+                            }, {
+                                'type': 'postback',
+                                'title': 'Departures',
+                                'payload': 'departures ' + station.abbr,
+                            }, {
+                                'type': 'web_url',
+                                'url': directionsUrl,
+                                'title': 'Directions'
+                            }]
+                        }]
+                    }
+                }
+            };
+
+            sendGenericMessage(sender, messageData);
+        } else {
+            console.log(error);
+            sendTextMessage(sender, 'Sorry I was unable to determine your closest BART station.');
+        }
+    });   
+}
+```
+
+The message to send back to the user is built up in `messageData` and sent with the `sendGeneric` function.
+
+To include a button that points to a URL we use:
+
+```
+{
+    'type': 'web_url',
+    'url': 'http://google.com',
+    'title': 'Google'
+}
+```
+
+When clicked in Messenger, this button will open the URL in the browser, and the a callback to the bot is not made.
+
+To include a button that posts back a further action to the bot we use:
+
+```
+{
+    'type': 'postback',
+    'title': 'Departures',
+    'payload': 'json to send back to bot',
+}
+```
+
+When clicked in Messenger, this will cause a POST to be sent to the bot's `/webhook/` endpoint containing the payload JSON as `event.postback.payload`.  The bot can then use this value to determine what action to take next, and which further response to send.
+
+If there's an error, we just return an error back to the user using the `sendTextMessage` function.
+
+### Responding to Postback Messages
+
+When we receive a postback message (identified by):
+
+```
+event.postback.payload
+```
+
+existing, and containing any JSON that was included in the `payload` of the button that was pressed in Messenger.  We then use that to determine what action to take.
+
+In our example, the only postback payloads look like `departures powl` which is something that the user can also enter themselves in a text message, so in our webhook POST route we just use the same handler as we would for a text message, and pass it the payload text:
+
+```
+if (event.postback.payload.indexOf('departures') > -1) {
+    processMessage(sender, event.postback.payload);
+}
+```
 
 ## Additional Facebook Setup
 
@@ -217,7 +434,3 @@ This is optional, but nice to have.  A welcome message is displayed automaticall
 ```
 curl -H "Content-Type: application/json" -X POST -d '{"setting_type":"call_to_actions","thread_state":"new_thread","call_to_actions":[{"message":{"text":"Hi, I am BART bot - I can help with your Bay Area travel needs!"}}]}' https://graph.facebook.com/v2.6/heybartbot/thread_settings?access_token=<FACEBOOK_PAGE_ACCESS_TOKEN>
 ```
-
-### Receive Images from Messenger Users
-
-TODO - not used in this bot, but explain the capability.
