@@ -293,8 +293,116 @@ function processMessage(sender, reqText) {
 
 For more complex text processing, Facebook recommend trying [wit.ai](https://wit.ai/).
 
-* TODO example of text message response
-* TODO example of generic / richer response
+#### Sending a Plain Text Response
+
+In the case where we want to send a basic text reply (for example with the elevator status response that is just a short text message), we simply call a function `sendTextMessage` which expects the sender (from the original webhook call that came from the Facebook platform), and a string for the message to send back to that user:
+
+```
+sendTextMessage(sender, 'Hello there!');
+```
+
+The implementation of `sendTextMessage` looks like this:
+
+```
+function sendTextMessage(sender, text) {
+    var messageData = {
+        text: text
+    };
+
+    httpRequest({
+        url: 'https://graph.facebook.com/v2.6/me/messages',
+        qs: { 
+            access_token: FACEBOOK_PAGE_ACCESS_TOKEN 
+        },
+        method: 'POST',
+        json: {
+            recipient: { 
+                id: sender
+            },
+            message: messageData,
+        }
+    }, function(error, response, body) {
+        if (error) {
+            console.log('Error sending message: ', error);
+        } else if (response.body.error) {
+            console.log('Error: ', response.body.error);
+        }
+    });
+}
+```
+
+This simple sends a HTTP `POST` to the Facebook Graph API (must be v2.6 or higher) to generate a message back to the user.  The `messageData` object simply wraps the plain text that we want to send.  We authenticate to Facebook using the Page Access Token that was obtained when setting up the bot.
+
+If the message is over 320 characters, Facebook will reject it.
+
+In other cases, we have more information than the 320 character limit of a text message allows for, and/or we want to format it to include multiple message "bubbles", images, header/sub-headers, links to websites or further calls to action.  For this we need to use Facebook's "Generic Template".
+
+#### Sending a Richer Response
+
+Strangely, Facebook uses the term "Generic Template" for its richer message template that can include between 1 and 10 "bubbles", each containing a title (45 characters), subtitle (80 characters), 3 buttons each having up to a 20 character label and linking to an external web page or a postback to the bot.
+
+Again, the message bubble(s) are described by way of JavaScript objects and posted to the Facebook Graph API as JSON.
+
+An example object that sends 3 bubbles each with a title and subtitle looks like this (we use this to return departure times from a given station):
+
+```
+messageData = {
+    attachment: {
+        type: 'template',
+        payload: {
+            template_type: 'generic',
+            elements: [
+                {
+                    title: '24th Street',
+                    'subtitle': '43 mins, 9 cars. 58 mins, 9 cars. 73 mins, 9 cars.'
+                },
+                {
+                    title: 'Daly City',
+                    'subtitle': '43 mins, 9 cars. 58 mins, 9 cars. 73 mins, 9 cars. 1 min, 9 cars. 4 mins, 9 cars.'
+                },
+                {
+                    title: 'Millbrae',
+                    'subtitle': '8 mins, 4 cars. 23 mins, 4 cars. 38 mins, 4 cars. 13 mins, 5 cars.'
+                }
+            ]
+        }
+    }
+};
+```
+
+Each object in the `elements` array becomes its own "bubble" when rendered in Messenger, and these scroll horizontally in the Messenger chat box.
+
+We'll look at adding images and callback buttons when responding to location messages later.
+
+When we have our object ready to send, we call a function `sendGenericMessage` which expects the sender (from the original webhook call that came from the Facebook platform), and an object containing the template for the message bubble(s) to send back to that user:
+
+The implementation of `sendGenericMessage` looks like this:
+
+```
+function sendGenericMessage(sender, messageData) {
+    httpRequest({
+        url: 'https://graph.facebook.com/v2.6/me/messages',
+        qs: { 
+            access_token: FACEBOOK_PAGE_ACCESS_TOKEN 
+        },
+        method: 'POST',
+        json: {
+            recipient: {
+                id: sender
+            },
+            message: messageData,
+        }
+    }, function(error, response, body) {
+        if (error) {
+            console.log('Error sending message: ', error);
+        } else if (response.body.error) {
+            console.log('Error: ', response.body.error);
+        }
+    });
+}
+```
+
+We do pretty much the same thing as in `sendTextMessage`, however `sendGenericMessage` expects a `messageData` object rather than a string as its second parameter.
 
 ### Responding to Location Messages
 
