@@ -15,6 +15,7 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     port = process.env.PORT || 8888,
     FACEBOOK_PAGE_ACCESS_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
+    MAPBOX_API_TOKEN = process.env.MAPBOX_API_TOKEN,
     BART_API_BASE = 'http://bart.crudworks.org/api';
 
 function processMessage(sender, reqText) {
@@ -233,7 +234,7 @@ function processLocation(sender, coords) {
                         'elements': [{
                             'title': 'Closest BART: ' + station.name,
                             'subtitle': station.distance.toFixed(2) + ' miles',
-                            'image_url': 'http://staticmap.openstreetmap.de/staticmap.php?center=' + station.gtfs_latitude + ',' + station.gtfs_longitude + '&zoom=18&size=640x480&maptype=osmarenderer&markers=' + station.gtfs_latitude + ',' + station.gtfs_longitude,
+                            'image_url': 'https://api.mapbox.com/v4/mapbox.streets/' + station.gtfs_longitude + ',' + station.gtfs_latitude + ',18/640x480@2x.png?access_token=' + MAPBOX_API_TOKEN,
                             'buttons': [{
                                 'type': 'web_url',
                                 'url': 'http://www.bart.gov/stations/' + station.abbr.toLowerCase(),
