@@ -291,7 +291,7 @@ function processMessage(sender, reqText) {
 }
 ```
 
-For more complex text processing, Facebook recommend trying [wit.ai](https://wit.ai/).
+For more complex text processing, Facebook recommends trying [wit.ai](https://wit.ai/).
 
 #### Sending a Plain Text Response
 
