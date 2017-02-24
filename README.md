@@ -52,7 +52,7 @@ As part of the initial handshake with the Facebook platform, our application nee
 
 Pick a validation token - for example "super_secret_squirrel", then deploy an application that contains the following route somewhere that it can be accessed at a HTTPS URL:
 
-```
+```javascript
 app.get('/webhook/', function (req, res) {
   if (req.query['hub.verify_token'] === 'super_secret_squirrel') {
     res.send(req.query['hub.challenge']);
@@ -121,7 +121,7 @@ The Facebook platform communicates with the bot using a single `POST` route to `
 
 Facebook provides some boilerplate code for this that looks like this:
 
-```
+```javascript
 app.post('/webhook/', function (req, res) {
   messaging_events = req.body.entry[0].messaging;
   for (i = 0; i < messaging_events.length; i++) {
@@ -140,7 +140,7 @@ This will receive a message (or array of - Facebook can batch incoming messages 
 
 In my bot, I'm handling more than just the basic text messages that the Facebook example code caters for: I'm looking for messages with a location attachment (user has sent their location from Messenger to the bot), and postback messages from previous button presses that the user made on calls to action that the user took when dealing with replies from the bot.  So my logic for processing incoming messages from Messenger looks like:
 
-```
+```javascript
 app.post('/webhook/', function (req, res) {
     var messagingEvents, 
         i = 0,
@@ -219,7 +219,7 @@ If a message has a text field in it that contains more than the allowed number o
 
 When we receive a text message (identified by a `POST` to `/webhook/` containing):
 
-```
+```javascript
 event.message.text
 ```
 
@@ -229,7 +229,7 @@ We can then use any sort of string parsing to try and work out what the user is 
 
 In this demo, we're using basic string searches to determine the user's query.  Ugly, but effective enough to pick out what we need:
 
-```
+```javascript
 function processMessage(sender, reqText) {
     var respText = 'Sorry I don\'t understand. Try:\n\nstatus\nelevators\nstations\ndepartures <code>\n\nOr send your location for nearest station.',
         keywordPos = -1,
@@ -297,13 +297,13 @@ For more complex text processing, Facebook recommend trying [wit.ai](https://wit
 
 In the case where we want to send a basic text reply (for example with the elevator status response that is just a short text message), we simply call a function `sendTextMessage` which expects the sender (from the original webhook call that came from the Facebook platform), and a string for the message to send back to that user:
 
-```
+```javascript
 sendTextMessage(sender, 'Hello there!');
 ```
 
 The implementation of `sendTextMessage` looks like this:
 
-```
+```javascript
 function sendTextMessage(sender, text) {
     var messageData = {
         text: text
@@ -345,7 +345,7 @@ Again, the message bubble(s) are described by way of JavaScript objects and post
 
 An example object that sends 3 bubbles each with a title and subtitle looks like this (we use this to return departure times from a given station):
 
-```
+```javascript
 messageData = {
     attachment: {
         type: 'template',
@@ -378,7 +378,7 @@ When we have our object ready to send, we call a function `sendGenericMessage` w
 
 The implementation of `sendGenericMessage` looks like this:
 
-```
+```javascript
 function sendGenericMessage(sender, messageData) {
     httpRequest({
         url: 'https://graph.facebook.com/v2.6/me/messages',
@@ -408,13 +408,13 @@ We do pretty much the same thing as in `sendTextMessage`, however `sendGenericMe
 
 When we receive a location message (identified by):
 
-```
+```javascript
 event.message.attachments[0].type === 'location'
 ```
 
 We're interested in the user's lat/long co-ordinates, which can be obtained from the incoming message as:
 
-```
+```javascript
 attachment.payload.coordinates.lat
 attachment.payload.coordinates.long
 ```
@@ -432,7 +432,7 @@ In our case, the bot asks the BART API for the station closest to the user's loc
 
 The code for this looks like:
 
-```
+```javascript
 function processLocation(sender, coords) {
     httpRequest({
         url: BART_API_BASE + '/station/' + coords.lat + '/' + coords.long,
@@ -489,7 +489,7 @@ The message to send back to the user is built up in `messageData` and sent with 
 
 To include a button that points to a URL we use:
 
-```
+```javascript
 {
     'type': 'web_url',
     'url': 'http://google.com',
@@ -501,7 +501,7 @@ When clicked in Messenger, this button will open the URL in the browser, and the
 
 To include a button that posts back a further action to the bot we use:
 
-```
+```javascript
 {
     'type': 'postback',
     'title': 'Departures',
@@ -517,7 +517,7 @@ If there's an error, we just return an error back to the user using the `sendTex
 
 When we receive a postback message (identified by):
 
-```
+```javascript
 event.postback.payload
 ```
 
@@ -525,7 +525,7 @@ existing, and containing any JSON that was included in the `payload` of the butt
 
 In our example, the only postback payloads look like `departures powl` which is something that the user can also enter themselves in a text message, so in our webhook POST route we just use the same handler as we would for a text message, and pass it the payload text:
 
-```
+```javascript
 if (event.postback.payload.indexOf('departures') > -1) {
     processMessage(sender, event.postback.payload);
 }
